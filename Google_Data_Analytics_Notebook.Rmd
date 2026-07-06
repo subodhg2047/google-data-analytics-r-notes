@@ -1,0 +1,429 @@
+---
+title: "Google Data Analytics Certification — R Practice Notebook"
+subtitle: "Consolidated revision notes"
+author: "Subodh"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: flatly
+    code_folding: show
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Introduction
+
+These are my consolidated practice notes from the **Google Data Analytics Certification**,
+covering base R, the `tidyverse`, data cleaning, summarizing, and `ggplot2` visualization.
+You may refer this for own learning or revision if you have already taken the course.
+
+---
+
+## 1. Environment Setup
+
+
+```{r install-packages, eval=FALSE}
+install.packages(c(
+  "tidyverse", "palmerpenguins", "here", "skimr", "janitor",
+  "Tmisc", "datasauRus", "SimDesign"
+))
+```
+
+Packages actually loaded when the notebook is knitted:
+
+```{r load-libraries}
+library(tidyverse)     # loads ggplot2, dplyr, tidyr, readr, purrr, tibble, stringr, forcats
+library(palmerpenguins) # sample dataset: penguins
+library(skimr)          # quick, rich data summaries
+library(janitor)        # clean_names() and other cleaning helpers
+```
+
+---
+
+## 2. Working with Dates and Times (`lubridate`)
+
+```{r dates-times}
+today()
+now()
+
+mdy("January 20, 2023")
+dmy("20-Jan-2021")
+ymd_hms("2021-01-20 20:11:59")
+mdy_hm("01/20/2021 08:01")
+as_date(now())
+```
+
+---
+
+## 3. Base R Fundamentals
+
+### 3.1 Arithmetic
+
+```{r arithmetic}
+quarter_1_sales <- 3457.98
+quarter_2_sales <- 1243.23
+
+midyear_sales <- quarter_1_sales + quarter_2_sales
+year_end_sales <- midyear_sales * 2
+
+midyear_sales
+year_end_sales
+```
+
+### 3.2 Conditional Logic (`if` / `else if` / `else`)
+
+```{r conditionals}
+x <- -7
+if (x > 0) {
+  print("x is a positive number")
+} else if (x == 0) {
+  print("x is zero")
+} else {
+  print("x is either negative or zero")
+}
+
+# Applying conditionals to real data (airquality, base R dataset)
+data("airquality")
+
+if (airquality$Temp[1] < 80) {
+  print("It's not a hot day!")
+} else {
+  print("It's a hot day.")
+}
+
+ozone_level <- airquality[1, "Ozone"]
+if (is.na(ozone_level)) {
+  print("Ozone reading is missing for the first day.")
+} else if (ozone_level < 30) {
+  print("Low ozone level.")
+} else if (ozone_level < 100) {
+  print("Moderate ozone level.")
+} else {
+  print("High ozone level.")
+}
+```
+
+### 3.3 Subsetting with Logical Operators
+
+```{r subsetting}
+high_solar_wind <- subset(airquality, Solar.R > 150 & Wind > 10)
+low_solar_late  <- subset(airquality, Solar.R < 150 & Day > 20)
+
+# Negation with '!' - everything EXCEPT rows matching the condition
+not_high_solar_late <- subset(airquality, !(Solar.R > 150 & Day > 20))
+
+head(high_solar_wind)
+head(low_solar_late)
+head(not_high_solar_late)
+```
+
+---
+
+## 4. Importing & Inspecting Data
+
+```{r inspect-data}
+# Palmer Penguins
+summary(penguins)
+glimpse(penguins)
+
+# diamonds (ggplot2 built-in dataset)
+head(diamonds)
+str(diamonds)
+colnames(diamonds)
+
+# mtcars
+data(mtcars)
+head(mtcars)
+```
+
+---
+
+## 5. Data Cleaning & Wrangling
+
+### 5.1 Renaming Columns
+
+```{r rename}
+diamonds %>% rename(carat_new = carat) %>% head()
+diamonds %>% rename(carat_new = carat, cut_new = cut) %>% head()
+```
+
+### 5.2 Quick Summary Statistics
+
+```{r summarize}
+diamonds %>% summarise(mean_carat = mean(carat))
+```
+
+### 5.3 Standardizing Column Names
+
+```{r clean-names}
+penguins %>% clean_names() %>% colnames()
+```
+
+### 5.4 Adding & Removing Columns (`mutate` / `select`)
+
+```{r mutate-select}
+penguins_km <- penguins %>%
+  mutate(body_mass_kg = body_mass_g / 1000,
+         flipper_length_m = flipper_length_mm / 1000)
+
+skim_without_charts(penguins_km)
+
+# dropping a column
+penguins_km %>% select(-flipper_length_m) %>% colnames()
+```
+
+### 5.5 Splitting & Combining Columns (`separate` / `unite`)
+
+```{r separate-unite}
+employee <- data.frame(
+  id = 1:10,
+  name = c("John Mendes", "Rob Stewart", "Rachel Abrahamson", "Christy Hickman",
+           "Johnson Harper", "Candace Miller", "Carlson Landy", "Pansy Jordan",
+           "Darius Berry", "Claudia Garcia"),
+  job_title = c("Professional", "Programmer", "Management", "Clerical", "Developer",
+                "Programmer", "Management", "Clerical", "Developer", "Programmer")
+)
+
+employee_split <- employee %>% separate(name, into = c("first_name", "last_name"), sep = " ")
+employee_split %>% unite("full_name", first_name, last_name, sep = "-")
+```
+
+---
+
+## 6. Grouping & Summarizing
+
+```{r grouping}
+# single grouping
+penguins %>%
+  group_by(island) %>%
+  drop_na() %>%
+  summarise(mean_bill_length_mm = mean(bill_length_mm))
+
+# multiple grouping
+penguins %>%
+  group_by(species, island) %>%
+  drop_na() %>%
+  summarise(
+    max_bill_length_mm = max(bill_length_mm),
+    min_bill_depth_mm  = min(bill_depth_mm),
+    mean_bill_length_mm = mean(bill_length_mm),
+    .groups = "drop"
+  )
+
+# filtering
+penguins %>% filter(species == "Adelie") %>% head()
+```
+
+### Piping (`%>%`) with `ToothGrowth`
+
+```{r piping}
+data("ToothGrowth")
+
+# Nested (harder to read)
+arrange(filter(ToothGrowth, dose == 0.5), len) %>% head()
+
+# Piped (easier to read) — Cmd/Ctrl+Shift+M inserts %>%
+ToothGrowth %>%
+  filter(dose == 0.5) %>%
+  arrange(len) %>%
+  head()
+
+# Grouped summary via pipe
+ToothGrowth %>%
+  filter(dose == 0.5) %>%
+  group_by(supp) %>%
+  summarise(mean_len = mean(len, na.rm = TRUE), .groups = "drop")
+```
+
+---
+
+## 7. Checking for Data Bias (`SimDesign::bias()`)
+
+`bias()` compares actual vs. predicted values. A result close to **zero** means the
+predictions are unbiased; **positive** means the model under-predicts on average;
+**negative** means it over-predicts.
+
+```{r bias-check}
+library(SimDesign)
+
+actual_temp    <- c(68.3, 70, 72.4, 71, 67, 70)
+predicted_temp <- c(67.9, 69, 71.5, 70, 67, 69)
+bias(actual_temp, predicted_temp)
+
+actual_sales    <- c(150, 203, 137, 247, 116, 287)
+predicted_sales <- c(200, 300, 150, 250, 150, 300)
+bias(actual_sales, predicted_sales)
+```
+
+---
+
+## 8. Data Visualization with `ggplot2`
+
+The "grammar of graphics" workflow:
+
+1. `ggplot()` + point to a dataset
+2. Add a geometry layer (`geom_point()`, `geom_boxplot()`, etc.)
+3. Map variables inside `aes()`
+4. Add labels/themes as needed
+5. Use `facet_wrap()` / `facet_grid()` to split into small multiples
+
+### 8.1 Basic Scatter Plot
+
+```{r viz-basic}
+ggplot(data = penguins, aes(x = flipper_length_mm, y = body_mass_g)) +
+  geom_point()
+```
+
+### 8.2 Grouping by Category (color, shape, size, transparency)
+
+```{r viz-grouping}
+ggplot(data = penguins, aes(x = flipper_length_mm, y = body_mass_g, color = species)) +
+  geom_point(aes(shape = species), size = 3, alpha = 0.7)
+```
+
+### 8.3 Trend Lines (Per Group vs. Overall)
+
+```{r viz-trendlines}
+# One trend line per species (color mapped globally)
+ggplot(penguins, aes(x = flipper_length_mm, y = body_mass_g, color = species)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE)
+
+# Single overall trend line (color mapped only inside geom_point)
+ggplot(penguins, aes(x = flipper_length_mm, y = body_mass_g)) +
+  geom_point(aes(color = species), size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "dashed")
+```
+
+### 8.4 Faceting (Small Multiples)
+
+```{r viz-facets}
+ggplot(penguins, aes(x = flipper_length_mm, y = body_mass_g)) +
+  geom_point(aes(color = species), alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "gray40", linetype = "dotted") +
+  facet_wrap(~species) +
+  theme_minimal()
+
+# Two-way faceting with facet_grid (NA rows removed first — ggplot can't drop them itself)
+ggplot(data = na.omit(penguins)) +
+  geom_point(aes(x = flipper_length_mm, y = body_mass_g, color = sex)) +
+  facet_grid(species ~ sex)
+```
+
+### 8.5 Polished, Presentation-Ready Plot
+
+```{r viz-polished}
+ggplot(data = penguins,
+       aes(x = flipper_length_mm, y = body_mass_g, color = species)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~species) +
+  labs(
+    title = "Relationship Between Flipper Length and Body Mass",
+    subtitle = "Palmer Penguins Dataset",
+    x = "Flipper Length (mm)",
+    y = "Body Mass (g)",
+    color = "Species"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  )
+```
+
+### 8.6 Comparing Distributions (Boxplot, Violin, Density)
+
+```{r viz-distributions}
+ggplot(penguins, aes(x = species, y = body_mass_g, fill = species)) +
+  geom_violin(alpha = 0.5) +
+  geom_boxplot(width = 0.15, alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Body Mass Distribution by Species")
+
+ggplot(penguins, aes(x = body_mass_g, fill = species)) +
+  geom_density(alpha = 0.3) +
+  theme_minimal() +
+  labs(title = "Density Distribution of Body Mass")
+```
+
+### 8.7 Bar Charts
+
+```{r viz-bar}
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = color, fill = cut)) +
+  facet_wrap(~cut)
+
+# Rotated axis labels for long category names
+ggplot(data = penguins) +
+  geom_bar(mapping = aes(x = species, fill = species)) +
+  facet_wrap(~island) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### 8.8 Annotations
+
+```{r viz-annotate}
+ggplot(data = penguins) +
+  geom_point(mapping = aes(x = flipper_length_mm, y = body_mass_g, color = species)) +
+  labs(
+    title = "Palmer Penguins: Body Mass vs. Flipper Length",
+    subtitle = "3 Species",
+    caption = "Data: palmerpenguins package"
+  ) +
+  annotate("text", x = 220, y = 3500, label = "The Gentoos are the largest",
+           color = "purple", fontface = "bold", size = 3, angle = 22)
+```
+
+### 8.9 Why Visualize? Anscombe's Quartet & the Datasaurus Dozen
+
+These two datasets are the classic teaching example for *why summary statistics alone
+are not enough* — very different-looking data can share nearly identical means,
+standard deviations, and correlations.
+
+```{r viz-quartet, warning=FALSE}
+library(Tmisc)
+data("quartet")
+
+quartet %>%
+  group_by(set) %>%
+  summarise(mean_x = mean(x), sd_x = sd(x), mean_y = mean(y), sd_y = sd(y), cor_xy = cor(x, y))
+
+ggplot(quartet, aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~set)
+```
+
+```{r viz-datasaurus, warning=FALSE}
+library(datasauRus)
+data(datasaurus_dozen)
+
+ggplot(datasaurus_dozen, aes(x = x, y = y, colour = dataset)) +
+  geom_point() +
+  theme_void() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset, ncol = 4)
+```
+
+### 8.10 Saving a Plot
+
+```{r viz-save, eval=FALSE}
+ggsave("penguin_species_plot.png")
+```
+
+---
+
+## Summary
+
+This notebook covers, in order: dates/times, base R conditionals and subsetting,
+importing and inspecting data, `dplyr` cleaning verbs, grouping/summarizing, bias
+checking, and a full `ggplot2` visualization progression from a bare scatter plot to
+faceted, annotated, presentation-ready charts.
